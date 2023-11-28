@@ -64,8 +64,8 @@ metadata:
   #- 6shore.net/kad-manual
 spec:
   replicas: 1
-  strategy:
-    type: Recreate
+  # strategy:
+  #   type: Recreate
   selector:
     matchLabels:
       app: kad
@@ -74,20 +74,47 @@ spec:
       labels:
         app: kad
     spec:
-      # initContainers:
-      # - name: init-file
-      #   image: docker.io/debian
-      #   command: ["bash", "-c", "date | tee /data/init-$(date --iso-8601=seconds)"]
+      initContainers:
+      - name: init-file
+        image: docker.io/debian
+        command: ["bash", "-c", "ls"]
       #   volumeMounts:
-      #   - name: data-storage
+      #   - name: data-storages
       #     mountPath: /data/
+      terminationGracePeriodSeconds: 1800
       containers:
       - name: app
         image: docker.io/tomkukral/kad
         imagePullPolicy: IfNotPresent
+        lifecycle:
+          postStart:
+            exec:
+              command: ["sh", "-c", "date > /tmp/started"]
+          preStop:
+            httpGet:
+              path: "/action/token-invalidate"
+              port: 5001
+        resources:
+          requests:
+            cpu: 100m
+            # memory: 12Mi
+          limits:
+            cpu: 200m
+            memory: 12Mi
+        livenessProbe:
+          httpGet:
+            path: /check/live
+            port: 5000
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /check/ready
+            port: 5001
+          periodSeconds: 5
         ports:
         - containerPort: 5000
-        #command: ["/bin/kad", "--color", "$(COLOR)"]
+        command: ["/bin/kad", "--color", "$(COLOR)"]
+        
         env:
         # static configuration from yaml
         - name: REDIS_SERVER
